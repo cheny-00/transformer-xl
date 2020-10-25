@@ -295,6 +295,7 @@ class RelLearnableMultiHeadAttn(RelMultiHeadAttn):
         super(RelLearnableMultiHeadAttn, self).__init__(*args, **kwargs)
 
     def forward(self, w, r_emb, r_w_bias, r_bias, attn_mask=None, mems=None):
+        # w: dec_inp
         # r_emb: [klen, n_head, d_head], used for term B
         # r_w_bias: [n_head, d_head], used for term C
         # r_bias: [klen, n_head], used for term D
@@ -302,7 +303,7 @@ class RelLearnableMultiHeadAttn(RelMultiHeadAttn):
         qlen, bsz = w.size(0), w.size(1)
 
         if mems is not None:
-            cat = torch.cat([mems, w], 0)
+            cat = torch.cat([mems, w], 0) # h_head_n-1
             if self.pre_lnorm:
                 w_heads = self.qkv_net(self.layer_norm(cat))
             else:
@@ -640,7 +641,7 @@ class MemTransformerLM(nn.Module):
         return new_mems
 
     def _forward(self, dec_inp, mems=None):
-        qlen, bsz = dec_inp.size()
+        qlen, bsz = dec_inp.size() # qlen = seq_len
 
         word_emb = self.word_emb(dec_inp)
 
@@ -728,7 +729,7 @@ class MemTransformerLM(nn.Module):
                                  mems=mems_i)
                 hids.append(core_out)
 
-        core_out = self.drop(core_out)
+        core_out = self.drop(core_out) # last hidden
 
         new_mems = self._update_mems(hids, mems, mlen, qlen)
 
@@ -744,7 +745,7 @@ class MemTransformerLM(nn.Module):
         tgt_len = target.size(0)
         hidden, new_mems = self._forward(data, mems=mems)
 
-        pred_hid = hidden[-tgt_len:]
+        pred_hid = hidden[-tgt_len:] # => new meta
         if self.sample_softmax > 0 and self.training:
             assert self.tie_weight
             logit = sample_logits(self.word_emb,
